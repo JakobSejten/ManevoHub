@@ -1,0 +1,8 @@
+{% extends "layout.html" %}
+{% block content %}
+    {% for job in jobs %}
+        <h1>{{job.title}}</h1>
+        <p>By {{job.author}} on {{job.date_posted}}</p>
+        <p>{{job.code}}</p>
+    {% endfor %}
+{% endblock content%}

@@ -1,8 +1,16 @@
 {% extends "layout.html" %}
 {% block content %}
     {% for job in jobs %}
-        <h1>{{job.title}}</h1>
-        <p>By {{job.author}} on {{job.date_posted}}</p>
-        <p>{{job.code}}</p>
+        <article class="media content-section">
+          <img class="rounded-circle article-img" src="{{url_for('static', filename='profile_pics/' + job.user.image_file)}}">
+          <div class="media-body">
+            <div class="article-metadata">
+              <a class="mr-2" href="#">{{ job.user.username }}</a>
+              <small class="text-muted">{{ job.datePosted.strftime('%d/%m/%Y, %H:%M') }}</small>
+            </div>
+            <h2><a class="article-title" href="{{ url_for('job', job_id=job.id) }}">{{ job.title }}</a></h2>
+            <p class="article-content">{{ job.code }}</p>
+          </div>
+        </article>
     {% endfor %}
 {% endblock content%}

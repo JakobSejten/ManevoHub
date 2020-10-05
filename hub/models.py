@@ -13,6 +13,7 @@ class User(db.Model, UserMixin):
     image_file = db.Column(db.String(20), nullable=False, default='default.jpg')
     password = db.Column(db.String(60), nullable=False)
     jobs = db.relationship('Job', backref='user')
+    workers = db.relationship('Worker', backref='user')
 
     def __repr__(self):
         return f"User('{self.username}', '{self.email}', '{self.image_file}')"
@@ -50,8 +51,9 @@ class Worker(db.Model):
     name = db.Column(db.String, nullable=False, unique=True)
     filamentColor = db.Column(db.String, nullable=False)
     filamentMaterial = db.Column(db.String, nullable=False)
-    # currentlyPrinting = db.Column(db.String, nullable=False)
+    status = db.Column(db.String, nullable=False, default="Available")
     assignedJobs = db.relationship('Job', backref='worker')
+    userID = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
     def __repr__(self):
         return "Worker({}, {}, {}, {})".format(self.id, self.name, self.filamentColor, self.filamentMaterial)

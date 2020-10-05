@@ -3,9 +3,10 @@ import secrets
 from PIL import Image
 from flask import render_template, url_for, flash, redirect, request, abort
 from hub import app, db, bcrypt
-from hub.forms import RegistrationForm, LoginForm, UpdateAccountForm, JobForm
+from hub.forms import RegistrationForm, LoginForm, UpdateAccountForm, JobForm, WorkerForm
 from hub.models import User, Job, Worker
 from flask_login import login_user, current_user, logout_user, login_required
+
 
 @app.route("/")
 @app.route("/home")
@@ -13,9 +14,11 @@ def home():
     jobs = Job.query.all()
     return render_template("home.html", jobs=jobs)
 
+
 @app.route("/about")
 def about():
     return render_template("about.html", title='About')
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -30,6 +33,7 @@ def register():
         flash(f'Account created for {form.username.data}!', 'success')
         return redirect(url_for('login'))
     return render_template("register.html", title='Register', form=form)
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -46,6 +50,7 @@ def login():
         else:
             flash('Login unsuccessful. Please check username and password.', 'danger')
     return render_template("login.html", title='Login', form=form)
+
 
 @app.route("/logout")
 def logout():
@@ -87,13 +92,22 @@ def account():
     return render_template('account.html', title='Account', image_file=image_file, form=form)
 
 
+def save_gcode(form_gcode):
+    gcode_fn = form_gcode.filename
+    gcode_path = os.path.join(app.root_path, 'static/gcode_files', gcode_fn)
+    form_gcode.save(gcode_path)
+    return gcode_fn
+
+
 @app.route("/job/new", methods=['GET', 'POST'])
 @login_required
 def new_job():
     form = JobForm()
     if form.validate_on_submit():
-        job = Job(title=form.title.data, comment=form.comment.data, code='job.gcode', color='Black', material='PLA', qty=1, status='Queue', user=current_user)
+        job = Job(title=form.title.data, comment=form.comment.data, code=save_gcode(form.jobfile.data), color=form.color.data, material=form.material.data, qty=form.qty.data, status='Queue', user=current_user)
         db.session.add(job)
+        db.session.commit()
+        job.queuePosition = job.id
         db.session.commit()
         flash('Job has been added to the queue.', 'success')
         return redirect(url_for('new_job'))
@@ -103,7 +117,8 @@ def new_job():
 @app.route("/job/<int:job_id>")
 def job(job_id):
     job = Job.query.get_or_404(job_id)
-    return render_template('job.html', title=job.title, job=job)
+    return render_template('job.html', title='Edit ' + job.title, job=job)
+
 
 @app.route("/job/<int:job_id>/edit", methods=['GET', 'POST'])
 @login_required
@@ -115,12 +130,18 @@ def edit_job(job_id):
     if form.validate_on_submit():
         job.title = form.title.data
         job.comment = form.comment.data
+        job.color = form.color.data
+        job.material = form.material.data
+        job.jobfile = form.jobfile.data
         db.session.commit()
         flash('Your job has been edited.', 'success')
         return redirect(url_for('job', job_id=job.id))
     elif request.method == "GET":
         form.title.data = job.title
         form.comment.data = job.comment
+        form.color.data = job.color
+        form.material.data = job.material
+        form.jobfile.data = job.code
     return render_template('create_job.html', title = 'Update Job', form=form, legend='Edit Job')
 
 
@@ -134,3 +155,42 @@ def delete_job(job_id):
     db.session.commit()
     flash('Your job has been deleted.', 'info')
     return redirect(url_for('home'))
+
+
+@app.route("/worker/new", methods=['GET', 'POST'])
+@login_required
+def new_worker():
+    form = WorkerForm()
+    if form.validate_on_submit():
+        worker = Worker(name=form.name.data, filamentColor=form.color.data, filamentMaterial=form.material.data, user=current_user)
+        db.session.add(worker)
+        db.session.commit()
+        flash('Worker has been created.', 'success')
+        return redirect(url_for('worker'))
+    return render_template('create_worker.html', form=form, title='Create Worker', legend="Create Worker")
+
+@app.route("/worker/edit/<int:worker_id>", methods=['GET', 'POST'])
+@login_required
+def edit_worker(worker_id):
+    form = WorkerForm()
+    worker = Worker.query.get_or_404(worker_id)
+    print(worker)
+    if form.validate_on_submit():
+        worker.name = form.name.data
+        worker.filamentColor = form.color.data
+        worker.filamentMaterial = form.material.data
+        #worker.userID = current_user - FIX RELATIONSHIP CASCADES FOR THIS FEATURE
+        db.session.commit()
+        flash('Worker settings have been updated.', 'success')
+        return redirect(url_for('worker'))
+    elif request.method == "GET":
+        form.name.data = worker.name
+        form.color.data = worker.filamentColor
+        form.material.data = worker.filamentMaterial
+    return render_template('create_worker.html', form=form, title='Edit Worker Settings', legend="Edit Worker Settings")
+
+
+@app.route("/workers")
+def worker():
+    workers = Worker.query.all()
+    return render_template("workers.html", workers=workers, title='Workers')

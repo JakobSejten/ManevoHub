@@ -1,8 +1,8 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
 from flask_login import current_user
-from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField
-from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError
+from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, IntegerField, SelectField
+from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, NumberRange
 from hub.models import User
 
 class RegistrationForm(FlaskForm):
@@ -47,8 +47,22 @@ class UpdateAccountForm(FlaskForm):
             if email:
                 raise ValidationError('That email is taken. Please use a different one.')
 
+colorChoices = ['Blackizzle', 'Redizzle', 'Greenizzle', 'Bluezzle']
+materialChoices = ['PLA', 'ABS', 'PETG']
+
 
 class JobForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired()])
-    comment = TextAreaField('Comment', validators=[DataRequired()])
+    jobfile = FileField('Upload GCode File', validators=[FileAllowed(['gcode'])])
+    color = SelectField('Select Color',choices=colorChoices ,validators=[DataRequired()])
+    material = SelectField('Select Material', choices=materialChoices,validators=[DataRequired()])
+    comment = TextAreaField('Comment')
+    qty = SelectField('Select Quantity', validators=[DataRequired()], choices=range(1,1000), coerce=int)
+    submit = SubmitField('Submit')
+
+
+class WorkerForm(FlaskForm):
+    name = StringField('Printer Name', validators=[DataRequired()])
+    color = SelectField('Select Color', choices=colorChoices, validators=[DataRequired()])
+    material = SelectField('Select Material', choices=materialChoices, validators=[DataRequired()])
     submit = SubmitField('Submit')

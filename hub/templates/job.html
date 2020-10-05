@@ -12,9 +12,39 @@
             <button type="button" class="btn btn-danger btn-sm m-1" data-toggle="modal" data-target="#deleteModal">Delete</button>
           </div>
         {% endif %}
+
       </div>
       <h2 class="article-title">{{ job.title }}</h2>
       <p class="article-content">{{ job.code }}</p>
+      <div class="">
+        <div class="row">
+          <div class="col-sm">
+            <p>Quantity: {{ job.qty }}</p>
+            <p>Material: {{ job.material }}</p>
+            <p>Color: {{ job.color }}</p>
+            <p>Queue Position: {{job.queuePosition}}</p>
+          </div>
+          <div class="col-sm">
+            <p>Date posted: {{job.datePosted.strftime('%d/%m/%Y, %H:%M')  }}</p>
+
+            {% if job.datePrintStart %}
+              <p>Print initiated: <br>{{job.datePrintStart.strftime('%d/%m/%Y, %H:%M') }}</p>
+            {% else %}
+              <p>Print initiated: <br>Print not yet initiated</p>
+            {% endif %}
+
+            {% if job.datePrintStart %}
+              <p>Print Completed: <br>{{job.datePrintFinish.strftime('%d/%m/%Y, %H:%M') }}</p>
+            {% else %}
+              <p>Print Completed: <br>Print not yet completed</p>
+            {% endif %}
+          </div>
+          <div class="col-sm">
+            <p>Print comments:</p>
+            <p class="">{{ job.comment }}</p>
+          </div>
+        </div>
+      </div>
     </div>
   </article>
 

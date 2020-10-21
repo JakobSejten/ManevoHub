@@ -1,9 +1,11 @@
+import os
+from hub import app
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
 from flask_login import current_user
-from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, IntegerField, SelectField
-from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, NumberRange
-from hub.models import User
+from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, SelectField
+from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, NoneOf
+from hub.models import User, Job
 
 class RegistrationForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=4, max=20)])
@@ -51,14 +53,30 @@ colorChoices = ['Blackizzle', 'Redizzle', 'Greenizzle', 'Bluezzle']
 materialChoices = ['PLA', 'ABS', 'PETG']
 
 
+def uploaded_files():
+    gcode_path = os.path.join(app.root_path, 'static/gcode_files')
+    used_files = os.listdir(gcode_path)
+    return used_files
+
+
 class JobForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired()])
     jobfile = FileField('Upload GCode File', validators=[FileAllowed(['gcode'])])
-    color = SelectField('Select Color',choices=colorChoices ,validators=[DataRequired()])
+    color = SelectField('Select Color', choices=colorChoices, validators=[DataRequired()])
     material = SelectField('Select Material', choices=materialChoices,validators=[DataRequired()])
     comment = TextAreaField('Comment')
     qty = SelectField('Select Quantity', validators=[DataRequired()], choices=range(1,1000), coerce=int)
+    ignore_filename = BooleanField('Override currently uploaded file with same filename.', default=False)
     submit = SubmitField('Submit')
+
+
+    def validate_jobfile(self, jobfile):
+        if self.jobfile.data is None:
+            raise ValidationError('Choose a file to upload.')
+        elif jobfile.data.filename in uploaded_files():
+            if not self.ignore_filename.data:
+                ignore_filename_message = 'A file with this name is already in the queue. Do you wish to replace the existing file? This will also replace the file for jobs that have previously been queued.'
+                raise ValidationError(ignore_filename_message)
 
 
 class WorkerForm(FlaskForm):

@@ -1,7 +1,8 @@
 import os
 import secrets
+from datetime import datetime
 from PIL import Image
-from flask import render_template, url_for, flash, redirect, request, abort
+from flask import render_template, url_for, flash, redirect, request, abort, send_from_directory
 from hub import app, db, bcrypt
 from hub.forms import RegistrationForm, LoginForm, UpdateAccountForm, JobForm, WorkerForm
 from hub.models import User, Job, Worker
@@ -9,10 +10,22 @@ from flask_login import login_user, current_user, logout_user, login_required
 
 
 @app.route("/")
-@app.route("/home")
+@app.route("/jobs/queue")
 def home():
-    jobs = Job.query.all()
-    return render_template("home.html", jobs=jobs)
+    jobs = Job.query.filter_by(status="Queue").order_by(Job.queuePosition)
+    return render_template("home.html", jobs=jobs, title="Queue")
+
+
+@app.route("/jobs/current")
+def jobs_current():
+    jobs = Job.query.filter_by(status="Printing").order_by(Job.datePrintStart.desc())
+    return render_template("home.html", jobs=jobs, title="Current Jobs")
+
+
+@app.route("/jobs/completed")
+def jobs_completed():
+    jobs = Job.query.filter_by(status="Completed").order_by(Job.datePrintFinish.desc())
+    return render_template("home.html", jobs=jobs, title="Completed Jobs")
 
 
 @app.route("/about")
@@ -99,19 +112,33 @@ def save_gcode(form_gcode):
     return gcode_fn
 
 
+def remove_old_gcode():
+
+    gcode_path = os.path.join(app.root_path, 'static/gcode_files')
+
+    good_files = [r.code for r in Job.query.filter(Job.status.in_(['Queue', 'Printing'])).distinct()]
+    all_files = os.listdir(gcode_path)
+
+    for file in all_files:
+        if file not in good_files:
+            os.remove(os.path.join(gcode_path, file))
+
+
+
 @app.route("/job/new", methods=['GET', 'POST'])
 @login_required
 def new_job():
+    random_hex = secrets.token_hex(100)
     form = JobForm()
     if form.validate_on_submit():
-        job = Job(title=form.title.data, comment=form.comment.data, code=save_gcode(form.jobfile.data), color=form.color.data, material=form.material.data, qty=form.qty.data, status='Queue', user=current_user)
+        job = Job(title=form.title.data, comment=form.comment.data, code=save_gcode(form.jobfile.data), color=form.color.data, material=form.material.data, qty=form.qty.data, status='Queue', user=current_user, uploadID=random_hex)
         db.session.add(job)
         db.session.commit()
         job.queuePosition = job.id
         db.session.commit()
         flash('Job has been added to the queue.', 'success')
         return redirect(url_for('new_job'))
-    return render_template('create_job.html', title = 'New Job', form=form, legend='Create Job')
+    return render_template('create_job.html', title = 'Create Job', form=form, legend='Create Job')
 
 
 @app.route("/job/<int:job_id>")
@@ -133,6 +160,7 @@ def edit_job(job_id):
         job.color = form.color.data
         job.material = form.material.data
         job.jobfile = form.jobfile.data
+        job.qty = form.qty.data
         db.session.commit()
         flash('Your job has been edited.', 'success')
         return redirect(url_for('job', job_id=job.id))
@@ -153,6 +181,7 @@ def delete_job(job_id):
         abort(403)
     db.session.delete(job)
     db.session.commit()
+    remove_old_gcode()
     flash('Your job has been deleted.', 'info')
     return redirect(url_for('home'))
 
@@ -169,7 +198,7 @@ def new_worker():
         return redirect(url_for('worker'))
     return render_template('create_worker.html', form=form, title='Create Worker', legend="Create Worker")
 
-@app.route("/worker/edit/<int:worker_id>", methods=['GET', 'POST'])
+@app.route("/worker/<int:worker_id>/edit", methods=['GET', 'POST'])
 @login_required
 def edit_worker(worker_id):
     form = WorkerForm()
@@ -190,7 +219,166 @@ def edit_worker(worker_id):
     return render_template('create_worker.html', form=form, title='Edit Worker Settings', legend="Edit Worker Settings")
 
 
-@app.route("/workers")
+@app.route("/worker")
 def worker():
     workers = Worker.query.all()
-    return render_template("workers.html", workers=workers, title='Workers')
+    jobs = Job.query.filter_by(status="Printing")
+    return render_template("workers.html", workers=workers, title='Workers', jobs=jobs)
+
+
+@app.route("/worker/<int:worker_id>/delete", methods=['GET', 'POST'])
+@login_required
+def delete_worker(worker_id):
+    worker = Worker.query.get_or_404(worker_id)
+    db.session.delete(worker)
+    db.session.commit()
+    flash('Your worker has been deleted.', 'info')
+    return redirect(url_for('home'))
+
+
+@app.route("/printer/getjob/<int:worker_id>")
+def getjob(worker_id):
+    # Get printer info for printer with given ID
+    worker = Worker.query.get(worker_id)
+
+    if worker != None:
+        color = worker.filamentColor
+        material = worker.filamentMaterial
+
+        # Select first job that fulfills printer requirements
+        job = Job.query.filter_by(color=color, material=material, status="Queue").order_by(Job.queuePosition).first()
+        if job != None:
+
+            if job.qty > 1:
+                job.qty = job.qty-1
+
+                # Duplicate the job but with 'Printing' status
+                printing_job = Job(title=job.title, comment=job.comment, code=job.code, color=job.color, material=job.material, qty=1, status='Printing', user=job.user, uploadID=job.uploadID, datePosted=job.datePosted, datePrintStart=datetime.now(), printerID=worker_id)
+                db.session.add(printing_job)
+                worker.status = "Printing"
+                db.session.commit()
+
+            elif job.qty == 1:
+                job.status = "Printing"
+                job.datePrintStart = datetime.now()
+                job.printerID = worker_id
+                worker.status = "Printing"
+                db.session.commit()
+
+            filepath = os.path.join(app.root_path, 'static/gcode_files')
+
+            return send_from_directory(filepath, job.code, as_attachment=True)
+        else:
+            return "<h1>No Jobs For This Printer.</h1>"
+    else:
+        return "<h1>Printer Not Yet Configured, Contact Support.</h1>"
+
+@app.route("/printer/completejob/<int:worker_id>")
+def complete_job(worker_id):
+    worker = Worker.query.get(worker_id)
+    job = Job.query.filter_by(status='Printing', printerID=worker_id).first()
+
+    if job != None:
+
+        while job != None:
+            job.status = "Completed"
+            job.datePrintFinish = datetime.now()
+            worker.status = "Available"
+            db.session.commit()
+            job = Job.query.filter_by(status='Printing', printerID=worker_id).first()
+
+        worker.status = "Available"
+        db.session.commit()
+
+        remove_old_gcode()
+
+        return "<h1> Print Completed </h1>"
+    return "<h1> No jobs being printed </h1>"
+
+
+@app.route("/queue_up/<int:job_id>")
+def queue_up(job_id):
+
+    jobs = Job.query.filter_by(status="Queue").order_by(Job.queuePosition).all()
+
+    job1_index = jobs.index(Job.query.get_or_404(job_id))
+    job2_index = job1_index-1
+
+    job1_id = jobs[job1_index].id
+    job2_id = jobs[job2_index].id
+
+    job1 = Job.query.get(job1_id)
+    job2 = Job.query.get(job2_id)
+
+    qp1 = job1.queuePosition
+    qp2 = job2.queuePosition
+
+    job1.queuePosition = qp2
+    job2.queuePosition = qp1
+
+    db.session.commit()
+
+    return redirect(url_for('home'))
+
+
+@app.route("/queue_down/<int:job_id>")
+def queue_down(job_id):
+
+    jobs = Job.query.filter_by(status="Queue").order_by(Job.queuePosition).all()
+
+    job1_index = jobs.index(Job.query.get_or_404(job_id))
+    job2_index = job1_index+1
+
+    job1_id = jobs[job1_index].id
+    job2_id = jobs[job2_index].id
+
+    job1 = Job.query.get(job1_id)
+    job2 = Job.query.get(job2_id)
+
+    qp1 = job1.queuePosition
+    qp2 = job2.queuePosition
+
+    job1.queuePosition = qp2
+    job2.queuePosition = qp1
+
+    db.session.commit()
+
+    return redirect(url_for('home'))
+
+
+@app.route("/queue_top/<int:job_id>")
+def queue_top(job_id):
+
+    jobs = Job.query.filter_by(status="Queue").order_by(Job.queuePosition).all()
+
+    job1_index = jobs.index(Job.query.get_or_404(job_id))
+
+    qp0 = jobs[0].queuePosition
+
+    for i in range(job1_index):
+        jobs[i].queuePosition = jobs[i].queuePosition+1
+
+    Job.query.get_or_404(job_id).queuePosition = qp0
+
+    db.session.commit()
+
+    return redirect(url_for('home'))
+
+
+@app.route("/queue_bottom/<int:job_id>")
+def queue_bottom(job_id):
+
+    jobs = Job.query.filter_by(status="Queue").order_by(Job.queuePosition).all()
+
+    job1_index = jobs.index(Job.query.get_or_404(job_id))
+
+    qp0 = jobs[len(jobs)-1].queuePosition
+
+    for i in range(job1_index, len(jobs)):
+        jobs[i].queuePosition = jobs[i].queuePosition-1
+
+    Job.query.get_or_404(job_id).queuePosition = qp0
+
+    db.session.commit()
+
+    return redirect(url_for('home'))

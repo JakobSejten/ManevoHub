@@ -9,6 +9,9 @@
             <h2><a class="article-title" href="{{ url_for('edit_worker', worker_id=worker.id) }}">{{ worker.name }} - {{ worker.status }}</a></h2>
             <p class="article-content">Filament Color: {{ worker.filamentColor }}</p>
             <p class="article-content">Filament Type: {{ worker.filamentMaterial }}</p>
+            {% if worker.status == "Printing" %}
+              <p class="article-content">Currently printing: {{ jobs.filter_by(printerID=worker.id).first().code }}</p>
+            {% endif %}
           </div>
         </article>
     {% endfor %}

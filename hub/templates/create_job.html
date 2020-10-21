@@ -88,6 +88,12 @@
                             <span class="text-danger">
                                 {{ error }}
                             </span> </br>
+                            {% if error == 'A file with this name is already in the queue. Do you wish to replace the existing file? This will also replace the file for jobs that have previously been queued.' %}
+                            <div class="form-check">
+                                {{form.ignore_filename(class="form-check-input")}}
+                                {{form.ignore_filename.label(class="form-check-label")}}
+                            </div>
+                            {% endif %}
                         {% endfor %}
                      {% endif %}
                  </div>

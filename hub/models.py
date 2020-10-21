@@ -22,7 +22,7 @@ class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True) # Primary key for job
     uploadID = db.Column(db.Integer, unique=False) # ID for uploads - used for quantity settings
     groupID = db.Column(db.Integer, unique=False) # ID to group different jobs
-    queuePosition = db.Column(db.Integer, unique=True) # Number used to sort job queue positions
+    queuePosition = db.Column(db.Integer) # Number used to sort job queue positions
     title = db.Column(db.String, nullable=False) # Arbitrary name of the job given by user
     code = db.Column(db.String, nullable=False) # Filename of uploaded GCode
     color = db.Column(db.String, nullable=False) # Color of filament used
@@ -36,15 +36,9 @@ class Job(db.Model):
     printerID = db.Column(db.Integer, db.ForeignKey('worker.id')) # ID used to assign job or refer job to the used printer
     userID = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # ID used to assign job or refer job to the used printer
 
+
     def __repr__(self):
-        return "job({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})".format(self.id, self.uploadID,
-                                                                                     self.groupID, self.name, self.code,
-                                                                                     self.color, self.material,
-                                                                                     self.datePosted,
-                                                                                     self.datePrintStart,
-                                                                                     self.datePrintFinish, self.qty,
-                                                                                     self.comment, self.status,
-                                                                                     self.printerID)
+        return "Job({}, {}, {}, {}, {}, {})".format(self.id, self.title, self.code,self.color, self.material, self.printerID)
 
 class Worker(db.Model):
     id = db.Column(db.Integer, primary_key=True)

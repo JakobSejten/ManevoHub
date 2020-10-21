@@ -8,8 +8,25 @@
               <a class="mr-2" href="#">{{ job.user.username }}</a>
               <small class="text-muted">{{ job.datePosted.strftime('%d/%m/%Y, %H:%M') }}</small>
             </div>
-            <h2><a class="article-title" href="{{ url_for('job', job_id=job.id) }}">{{ job.title }}</a></h2>
-            <p class="article-content">{{ job.code }}</p>
+            <div class="col-sm">
+                <h2><a class="article-title" href="{{ url_for('job', job_id=job.id) }}">{{ job.title }}</a></h2>
+                <p class="article-content">{{ job.code }}</p>
+                <p class="article-content">Quantity: {{ job.qty }}</p>
+            </div>
+            {% if title=="Queue" %}
+              <div class="col-sm float-right">
+                {% if job != jobs[0] %}
+                    <a class="btn btn-outline-info" href="/queue_up/{{job.id}}" role="button">&UpArrow;</a>
+                    <a class="btn btn-outline-info" href="/queue_top/{{job.id}}" role="button">&UpArrowBar;</a>
+                {%  endif %}
+              </div>
+              <div class="col-sm float-right">
+                {% if job != jobs[-1] %}
+                    <a class="btn btn-outline-info" href="/queue_down/{{job.id}}" role="button">&DownArrow;</a>
+                    <a class="btn btn-outline-info" href="/queue_bottom/{{job.id}}" role="button">&DownArrowBar;</a>
+                {%  endif %}
+              </div>
+            {% endif %}
           </div>
         </article>
     {% endfor %}

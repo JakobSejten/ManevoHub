@@ -163,10 +163,10 @@ def new_job():
             status="Queue",
             user=current_user,
             uploadID=random_hex,
+            queuePosition=int(len(Job.query.filter_by(status="Queue").all())) + 1,
         )
+
         db.session.add(job)
-        db.session.commit()
-        job.queuePosition = job.id
         db.session.commit()
         flash("Job has been added to the queue.", "success")
         return redirect(url_for("new_job"))
@@ -215,6 +215,9 @@ def delete_job(job_id):
     job = Job.query.get_or_404(job_id)
     if job.user != current_user:
         abort(403)
+    qp = job.queuePosition
+    for j in Job.query.filter(Job.queuePosition > qp).all():
+        j.queuePosition = j.queuePosition - 1
     db.session.delete(job)
     db.session.commit()
     remove_old_gcode()
@@ -325,6 +328,9 @@ def getjob(worker_id):
                 db.session.commit()
 
             elif job.qty == 1:
+                qp = job.queuePosition
+                for j in Job.query.filter(Job.queuePosition > qp).all():
+                    j.queuePosition = j.queuePosition - 1
                 job.status = "Printing"
                 job.datePrintStart = datetime.now()
                 job.printerID = worker_id

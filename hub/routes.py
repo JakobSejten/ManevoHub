@@ -127,7 +127,7 @@ def account():
 
 def save_gcode(form_gcode):
     gcode_fn = form_gcode.filename
-    gcode_path = os.path.join(app.root_path, "static/gcode_files", gcode_fn)
+    gcode_path = os.path.join(app.root_path, "static", "gcode_files", gcode_fn)
     form_gcode.save(gcode_path)
     return gcode_fn
 
